@@ -1,0 +1,110 @@
+[
+  {
+    "id": "q1",
+    "role": "Full Stack Developer",
+    "category": "Technical",
+    "difficulty": "Intermediate",
+    "question": "Explain the difference between client-side rendering (CSR) and server-side rendering (SSR). In what scenarios would you choose one over the other?",
+    "expected_keywords": ["seo", "initial load time", "hydration", "next.js", "react", "performance", "server load"],
+    "hints": "Discuss initial page load, SEO implications, and interactive state hydration."
+  },
+  {
+    "id": "q2",
+    "role": "Full Stack Developer",
+    "category": "Technical",
+    "difficulty": "Intermediate",
+    "question": "How do you handle authentication and authorization in a modern web application using JWT? What are the common security vulnerabilities such as XSS and CSRF?",
+    "expected_keywords": ["jwt", "token", "http-only cookie", "refresh token", "xss", "csrf", "localstorage"],
+    "hints": "Address token storage, expiration, and mitigation tactics against cross-site scripting."
+  },
+  {
+    "id": "q3",
+    "role": "Full Stack Developer",
+    "category": "Scenario",
+    "difficulty": "Advanced",
+    "question": "Your production backend API response time spikes from 150ms to 4 seconds during peak traffic hours. Walk me through your step-by-step diagnostic and remediation process.",
+    "expected_keywords": ["database query optimization", "indexing", "caching", "redis", "connection pool", "logs", "apm", "n+1 problem"],
+    "hints": "Start from metrics/logs, drill down into database slow queries, and discuss caching strategies."
+  },
+  {
+    "id": "q4",
+    "role": "Software Engineer",
+    "category": "Technical",
+    "difficulty": "Beginner",
+    "question": "What are the core principles of Object-Oriented Programming (OOP), and how have you applied polymorphism in a recent project?",
+    "expected_keywords": ["encapsulation", "abstraction", "inheritance", "polymorphism", "interface", "method overriding"],
+    "hints": "Define encapsulation, abstraction, inheritance, and polymorphism with real code examples."
+  },
+  {
+    "id": "q5",
+    "role": "Software Engineer",
+    "category": "Technical",
+    "difficulty": "Intermediate",
+    "question": "Explain how database indexing works internally (such as B-Trees). When would an index degrade performance instead of improving it?",
+    "expected_keywords": ["b-tree", "lookup time", "o(log n)", "write overhead", "insert", "update", "composite index"],
+    "hints": "Mention tree balance, read vs write trade-offs, and storage cost."
+  },
+  {
+    "id": "q6",
+    "role": "Software Engineer",
+    "category": "System Design",
+    "difficulty": "Advanced",
+    "question": "How would you design a distributed rate limiter for a public API that receives 10,000 requests per second?",
+    "expected_keywords": ["token bucket", "leaky bucket", "redis", "sliding window", "distributed lock", "concurrency", "http 429"],
+    "hints": "Discuss token bucket algorithm, sliding window counters, and Redis atomic operations."
+  },
+  {
+    "id": "q7",
+    "role": "Machine Learning Engineer",
+    "category": "Technical",
+    "difficulty": "Intermediate",
+    "question": "What is the difference between Precision and Recall? In an automated medical diagnosis model or fraud detection, which metric would you prioritize and why?",
+    "expected_keywords": ["false positive", "false negative", "f1-score", "recall", "precision", "confusion matrix", "trade-off"],
+    "hints": "Explain the consequences of false negatives in medical diagnostics versus false positives."
+  },
+  {
+    "id": "q8",
+    "role": "Machine Learning Engineer",
+    "category": "Technical",
+    "difficulty": "Advanced",
+    "question": "Explain how Retrieval-Augmented Generation (RAG) works. How do you mitigate hallucinations and ensure low-latency vector similarity retrieval?",
+    "expected_keywords": ["embeddings", "vector database", "faiss", "chunking", "re-ranking", "cosine similarity", "context window", "llm"],
+    "hints": "Discuss embedding models, chunk size strategies, vector indexing, and prompt grounding."
+  },
+  {
+    "id": "q9",
+    "role": "Data Scientist",
+    "category": "Technical",
+    "difficulty": "Intermediate",
+    "question": "How do you detect and handle multicollinearity and missing data in a tabular dataset prior to training predictive models?",
+    "expected_keywords": ["vif", "variance inflation factor", "correlation matrix", "imputation", "knn", "mean/median", "feature selection"],
+    "hints": "Mention correlation heatmaps, Variance Inflation Factor, and smart imputation techniques."
+  },
+  {
+    "id": "q10",
+    "role": "HR / Behavioral",
+    "category": "HR",
+    "difficulty": "Beginner",
+    "question": "Tell me about a challenging technical bug or disagreement you faced with a teammate. How did you resolve it, and what did you learn?",
+    "expected_keywords": ["star method", "situation", "task", "action", "result", "communication", "empathy", "resolution"],
+    "hints": "Structure response using the STAR method: Situation, Task, Action, and Result."
+  },
+  {
+    "id": "q11",
+    "role": "HR / Behavioral",
+    "category": "HR",
+    "difficulty": "Beginner",
+    "question": "Describe a project where you had to learn a completely new technology or framework under a tight deadline. How did you approach the learning curve?",
+    "expected_keywords": ["documentation", "mvp", "time boxing", "prioritization", "resourcefulness", "outcome"],
+    "hints": "Highlight fast prototyping, documentation reading, and prioritizing core deliverables."
+  },
+  {
+    "id": "q12",
+    "role": "Frontend Developer",
+    "category": "Technical",
+    "difficulty": "Intermediate",
+    "question": "How does React's Virtual DOM reconciliation algorithm work? How do React Hooks like useMemo and useCallback prevent unnecessary re-renders?",
+    "expected_keywords": ["diffing algorithm", "fiber", "re-rendering", "memoization", "referential equality", "usememo", "usecallback"],
+    "hints": "Explain render cycle, shallow comparison of props/dependencies, and referential integrity."
+  }
+]

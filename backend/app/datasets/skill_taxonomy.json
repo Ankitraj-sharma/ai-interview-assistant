@@ -1,0 +1,37 @@
+{
+  "programming_languages": [
+    "python", "javascript", "typescript", "java", "c++", "c", "c#", "go", "golang", "rust", 
+    "ruby", "php", "swift", "kotlin", "scala", "r", "dart", "shell", "bash", "sql"
+  ],
+  "frontend": [
+    "react", "react.js", "next.js", "vue", "vue.js", "angular", "svelte", "html", "html5", 
+    "css", "css3", "tailwind css", "bootstrap", "sass", "redux", "zustand", "graphql", "webpack", "vite"
+  ],
+  "backend": [
+    "fastapi", "django", "flask", "node.js", "express", "express.js", "nest.js", "spring boot", 
+    "asp.net", ".net", "ruby on rails", "gin", "fiber", "rest api", "restful api", "grpc", "microservices"
+  ],
+  "databases": [
+    "postgresql", "postgres", "mysql", "mongodb", "sqlite", "redis", "supabase", "firebase", 
+    "cassandra", "dynamodb", "neo4j", "mariadb", "oracle", "elasticsearch"
+  ],
+  "cloud_devops": [
+    "aws", "amazon web services", "azure", "google cloud", "gcp", "docker", "kubernetes", 
+    "terraform", "ci/cd", "github actions", "gitlab ci", "jenkins", "linux", "nginx", "prometheus", "grafana"
+  ],
+  "ai_ml_data": [
+    "machine learning", "deep learning", "nlp", "natural language processing", "computer vision", 
+    "llm", "large language models", "rag", "retrieval augmented generation", "tensorflow", 
+    "pytorch", "scikit-learn", "spacy", "hugging face", "sentence transformers", "faiss", 
+    "pandas", "numpy", "matplotlib", "seaborn", "opencv", "gemini api", "openai api"
+  ],
+  "architecture_practices": [
+    "system design", "data structures", "algorithms", "dsa", "object oriented programming", 
+    "oop", "clean code", "solid principles", "design patterns", "test driven development", 
+    "tdd", "unit testing", "agile", "scrum", "git", "github"
+  ],
+  "soft_skills": [
+    "communication", "team collaboration", "leadership", "problem solving", "critical thinking", 
+    "time management", "adaptability", "conflict resolution", "presentation"
+  ]
+}
