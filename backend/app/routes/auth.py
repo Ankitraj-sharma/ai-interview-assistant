@@ -55,6 +55,20 @@ def register(user_in: UserRegister):
 @router.post("/login", response_model=TokenResponse)
 def login(credentials: UserLogin):
     user = db_get_profile_by_email(credentials.email)
+
+    # Auto-seed demo account if requested and missing in fresh database
+    if not user and credentials.email == "ankit.demo@example.com" and credentials.password == "DemoPass123!":
+        user_id = str(uuid.uuid4())
+        profile_data = {
+            "id": user_id,
+            "email": credentials.email,
+            "password_hash": hash_password(credentials.password),
+            "full_name": "Ankit Sharma (Demo)",
+            "target_role": "Full Stack Developer",
+            "experience_years": 2
+        }
+        user = db_save_profile(profile_data)
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
