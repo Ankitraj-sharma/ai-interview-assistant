@@ -41,6 +41,8 @@ def extract_skills_from_text(text: str) -> List[str]:
                     "Gcp": "GCP", "Ai": "AI", "Ml": "ML", "Nlp": "NLP",
                     "Llm": "LLM", "Rag": "RAG", "Ci/Cd": "CI/CD", "Tdd": "TDD",
                     "Php": "PHP", "Db": "DB", "Faiss": "FAISS",
+                    "Fastapi": "FastAPI", "Postgresql": "PostgreSQL",
+                    "Typescript": "TypeScript", "Javascript": "JavaScript",
                     "Next.Js": "Next.js", "Node.Js": "Node.js", "Vue.Js": "Vue.js",
                     "Express.Js": "Express.js", "Nest.Js": "Nest.js",
                     "C++": "C++", "C#": "C#", ".Net": ".NET"

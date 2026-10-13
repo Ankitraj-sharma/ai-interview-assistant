@@ -1,19 +1,22 @@
 -- =======================================================================
 -- AI INTERVIEW PREPARATION ASSISTANT - SUPABASE DATABASE SCHEMA
 -- =======================================================================
--- PostgreSQL Schema with Row Level Security (RLS) & Indexes for Supabase
+-- PostgreSQL Schema with pgvector, RLS, & Indexes for Supabase
 -- Run this script in the Supabase SQL Editor (Dashboard -> SQL Editor -> New Query)
 -- =======================================================================
 
--- Enable UUID extension
+-- Enable UUID & Crypto extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Enable pgvector Extension for Semantic Vector Search & RAG
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- 1. PROFILES TABLE (Candidate User Information)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT UNIQUE NOT NULL,
-    password_hash TEXT, -- Used if self-managed JWT auth is enabled
+    password_hash TEXT,
     full_name TEXT NOT NULL,
     target_role TEXT DEFAULT 'Full Stack Developer',
     experience_years INT DEFAULT 1,
@@ -64,45 +67,55 @@ CREATE TABLE IF NOT EXISTS public.skill_matches (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. INTERVIEW SESSIONS TABLE (Mock Interview Header)
+-- 5. INTERVIEW SESSIONS TABLE (Mock Interview Header with Personas & CAT)
 CREATE TABLE IF NOT EXISTS public.interview_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
     role TEXT NOT NULL,
-    difficulty TEXT DEFAULT 'Intermediate', -- Beginner, Intermediate, Advanced
+    difficulty TEXT DEFAULT 'Intermediate',          -- Beginner, Intermediate, Advanced
+    company_mode TEXT DEFAULT 'General Tech',        -- Google, Amazon, Fast-Paced Startup, Meta, General Tech
+    adaptive_status TEXT DEFAULT 'Standard',         -- Standard, Scaled Up (Hard), Calibrated (Foundations)
     num_questions INT DEFAULT 5,
-    status TEXT DEFAULT 'in_progress',     -- in_progress, completed, abandoned
+    status TEXT DEFAULT 'in_progress',              -- in_progress, completed, abandoned
     overall_score NUMERIC(5,2) DEFAULT 0.0,
     technical_score NUMERIC(5,2) DEFAULT 0.0,
     communication_score NUMERIC(5,2) DEFAULT 0.0,
     relevance_score NUMERIC(5,2) DEFAULT 0.0,
     completeness_score NUMERIC(5,2) DEFAULT 0.0,
+    code_score NUMERIC(5,2) DEFAULT 0.0,
     summary_feedback TEXT,
     weak_areas JSONB DEFAULT '[]'::jsonb,
     recommendations JSONB DEFAULT '[]'::jsonb,
+    engagement_metrics JSONB DEFAULT '{}'::jsonb,   -- {eye_contact_ratio, stability_score, engagement_level}
     created_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
 );
 
--- 6. INTERVIEW QUESTIONS TABLE (Generated/Retrieved Questions per session)
+-- 6. INTERVIEW QUESTIONS TABLE (Generated/Retrieved Questions per session + pgvector)
 CREATE TABLE IF NOT EXISTS public.interview_questions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID REFERENCES public.interview_sessions(id) ON DELETE CASCADE,
     question_order INT NOT NULL,
     question_text TEXT NOT NULL,
-    category TEXT DEFAULT 'Technical', -- Technical, HR, Scenario, System Design
+    category TEXT DEFAULT 'Technical',              -- Technical, Scenario, System Design, Coding, HR
     difficulty TEXT DEFAULT 'Intermediate',
     expected_keywords JSONB DEFAULT '[]'::jsonb,
+    is_coding_challenge BOOLEAN DEFAULT false,
+    code_starter_template TEXT DEFAULT '',
+    hints TEXT DEFAULT '',
+    embedding vector(768),                          -- 768-dim Gemini/SentenceTransformer vector
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 7. INTERVIEW ANSWERS TABLE (User Answers & Multi-Dimensional AI Evaluations)
+-- 7. INTERVIEW ANSWERS TABLE (User Answers, Multi-Dimensional AI Evaluations & Coding Analysis)
 CREATE TABLE IF NOT EXISTS public.interview_answers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID REFERENCES public.interview_sessions(id) ON DELETE CASCADE,
     question_id UUID REFERENCES public.interview_questions(id) ON DELETE CASCADE,
     user_answer TEXT NOT NULL,
     audio_url TEXT,
+    code_submission TEXT DEFAULT '',
+    programming_language TEXT DEFAULT 'javascript',
     technical_score NUMERIC(5,2) DEFAULT 0.0,
     communication_score NUMERIC(5,2) DEFAULT 0.0,
     relevance_score NUMERIC(5,2) DEFAULT 0.0,
@@ -112,12 +125,46 @@ CREATE TABLE IF NOT EXISTS public.interview_answers (
     strengths JSONB DEFAULT '[]'::jsonb,
     weaknesses JSONB DEFAULT '[]'::jsonb,
     follow_up_question TEXT,
-    speaking_metrics JSONB DEFAULT '{}'::jsonb, -- {wpm, duration_sec, filler_words_count}
+    speaking_metrics JSONB DEFAULT '{}'::jsonb,     -- {wpm, duration_sec, filler_words_count}
+    code_analysis JSONB DEFAULT '{}'::jsonb,        -- {time_complexity, space_complexity, code_quality, optimized_code}
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =======================================================================
--- INDEXES FOR PERFORMANCE
+-- PGVECTOR COSINE SIMILARITY MATCH FUNCTION (RAG RETRIEVAL)
+-- =======================================================================
+CREATE OR REPLACE FUNCTION match_questions (
+  query_embedding vector(768),
+  match_threshold float,
+  match_count int
+)
+RETURNS TABLE (
+  id UUID,
+  question_text TEXT,
+  category TEXT,
+  difficulty TEXT,
+  similarity float
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    q.id,
+    q.question_text,
+    q.category,
+    q.difficulty,
+    1 - (q.embedding <=> query_embedding) AS similarity
+  FROM public.interview_questions q
+  WHERE q.embedding IS NOT NULL
+    AND 1 - (q.embedding <=> query_embedding) > match_threshold
+  ORDER BY q.embedding <=> query_embedding
+  LIMIT match_count;
+END;
+$$;
+
+-- =======================================================================
+-- INDEXES FOR HIGH-THROUGHPUT LOOKUPS
 -- =======================================================================
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON public.resumes(user_id);
@@ -127,13 +174,6 @@ CREATE INDEX IF NOT EXISTS idx_interview_sessions_user_id ON public.interview_se
 CREATE INDEX IF NOT EXISTS idx_interview_questions_session_id ON public.interview_questions(session_id);
 CREATE INDEX IF NOT EXISTS idx_interview_answers_session_id ON public.interview_answers(session_id);
 CREATE INDEX IF NOT EXISTS idx_interview_answers_question_id ON public.interview_answers(question_id);
-
--- =======================================================================
--- STORAGE BUCKETS SETUP (Supabase Storage for Resumes & Audio)
--- =======================================================================
--- Note: You can create buckets via Supabase dashboard -> Storage -> New Bucket:
--- 1. 'resumes' (Private or Public depending on preference)
--- 2. 'interview-audio' (Public or Private)
 
 -- =======================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -146,7 +186,6 @@ ALTER TABLE public.interview_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.interview_questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.interview_answers ENABLE ROW LEVEL SECURITY;
 
--- Allow read/write access for authenticated users or API service role
 CREATE POLICY "Profiles access policy" ON public.profiles FOR ALL USING (true);
 CREATE POLICY "Resumes access policy" ON public.resumes FOR ALL USING (true);
 CREATE POLICY "Job descriptions access policy" ON public.job_descriptions FOR ALL USING (true);

@@ -1,21 +1,29 @@
 from typing import List, Dict, Any, Tuple
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 
 def compute_semantic_similarity(text1: str, text2: str) -> float:
     """
-    Computes cosine similarity between two texts using TF-IDF representation.
+    Computes cosine similarity between two texts using TF-IDF representation
+    with pure Python word-vector fallback if scikit-learn is unavailable.
     Returns score as a percentage between 0.0 and 100.0.
     """
     if not text1.strip() or not text2.strip():
         return 0.0
     try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
         vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
         tfidf_matrix = vectorizer.fit_transform([text1, text2])
         sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
         return round(float(sim) * 100, 2)
     except Exception:
-        return 0.0
+        # Fallback word-overlap cosine approximation
+        w1 = set(text1.lower().split())
+        w2 = set(text2.lower().split())
+        inter = len(w1.intersection(w2))
+        denom = (len(w1) * len(w2)) ** 0.5
+        if denom == 0:
+            return 0.0
+        return round(min(1.0, inter / denom) * 100, 2)
 
 def match_skills(
     resume_skills: List[str], 

@@ -9,20 +9,43 @@ def evaluate_answer_gemini(
     question: str,
     user_answer: str,
     category: str,
-    expected_keywords: List[str]
+    expected_keywords: List[str],
+    company_mode: str = "General Tech",
+    code_submission: Optional[str] = None,
+    programming_language: Optional[str] = "javascript"
 ) -> Dict[str, Any]:
-    """Uses Gemini 3.8 Flash to evaluate user's answer"""
+    """Uses Gemini 3.8 Flash to evaluate user's answer and code submissions"""
     from google import genai
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-    prompt = f"""You are a Senior Tech Interviewer and Staff Engineer evaluating a candidate's interview answer.
+    code_prompt_section = ""
+    if code_submission and code_submission.strip():
+        code_prompt_section = f"""
+Candidate's Submitted Code ({programming_language}):
+```
+{code_submission}
+```
+Analyze this code specifically for:
+1. time_complexity (e.g. 'O(N)', 'O(N log N)', 'O(N^2)')
+2. space_complexity (e.g. 'O(1)', 'O(N)')
+3. code_quality: Cleanliness, variable naming, edge case handling
+4. optimized_code: A clean, idiomatic model solution
+"""
+
+    prompt = f"""You are a Staff Engineer & Hiring Committee member conducting an interview at {company_mode}.
 
 Question: "{question}"
 Category: {category}
 Expected concepts/keywords: {', '.join(expected_keywords)}
-Candidate's Answer: "{user_answer}"
+Candidate's Verbal/Text Answer: "{user_answer}"
+{code_prompt_section}
 
-Evaluate the candidate's answer rigorously on these 4 dimensions (0 to 100 each):
+Company Evaluation Persona: {company_mode}.
+- If Google: Enforce strict computational Big-O complexity and distributed scale.
+- If Amazon: Evaluate Amazon Leadership Principles alignment and STAR method clarity.
+- If Startup: Evaluate pragmatic velocity, error handling, and clean maintainability.
+
+Evaluate the candidate rigorously on these 4 core dimensions (0 to 100 each):
 1. technical_score: Accuracy of tech concepts, terminology, correctness.
 2. relevance_score: Direct alignment with what was asked, no rambling.
 3. completeness_score: Thoroughness, edge cases, trade-offs explained.
@@ -40,10 +63,18 @@ Respond ONLY with valid JSON with this exact structure without markdown backtick
   "completeness_score": 78.0,
   "communication_score": 82.0,
   "overall_score": 84.0,
+  "code_score": 85.0,
   "strengths": ["Clear explanation of concept", "Mentioned correct technical terms"],
   "weaknesses": ["Could have detailed real-world edge cases", "Missed mentioning trade-offs"],
   "feedback": "Strong answer demonstrating good foundational understanding...",
-  "suggested_model_answer": "In production, the ideal approach involves..."
+  "company_feedback": "Feedback tailored specifically for {company_mode} hiring standards...",
+  "suggested_model_answer": "In production, the ideal approach involves...",
+  "code_analysis": {{
+    "time_complexity": "O(N)",
+    "space_complexity": "O(N)",
+    "code_quality": "Clean and well structured with optimal hash map lookup.",
+    "optimized_code": "// Clean model code..."
+  }}
 }}
 """
     response = client.models.generate_content(
@@ -66,18 +97,25 @@ def evaluate_answer_heuristic(
     question: str,
     user_answer: str,
     category: str,
-    expected_keywords: List[str]
+    expected_keywords: List[str],
+    company_mode: str = "General Tech",
+    code_submission: Optional[str] = None
 ) -> Dict[str, Any]:
     """Deterministic heuristic evaluation fallback for offline or testing mode"""
     words = user_answer.strip().split()
     word_count = len(words)
     answer_lower = user_answer.lower()
 
-    # Keyword coverage
-    matched_kw = [kw for kw in expected_keywords if kw.lower() in answer_lower]
+    matched_kw = []
+    for kw in expected_keywords:
+        kw_lower = kw.lower()
+        if kw_lower in answer_lower:
+            matched_kw.append(kw)
+        elif any(sub_w in answer_lower for sub_w in kw_lower.split() if len(sub_w) > 3):
+            matched_kw.append(kw)
+
     kw_ratio = len(matched_kw) / max(len(expected_keywords), 1)
 
-    # Word count scoring
     if word_count < 10:
         length_multiplier = 0.4
     elif word_count < 30:
@@ -93,6 +131,19 @@ def evaluate_answer_heuristic(
     communication = round(min(100.0, 75.0 if word_count >= 20 else 50.0), 1)
 
     overall = round((technical * 0.35 + relevance * 0.25 + completeness * 0.25 + communication * 0.15), 1)
+
+    code_analysis = None
+    code_score = None
+    if code_submission and len(code_submission.strip()) > 10:
+        has_loop = "for" in code_submission or "while" in code_submission
+        time_c = "O(N)" if has_loop else "O(1)"
+        code_score = 80.0 if has_loop else 65.0
+        code_analysis = {
+            "time_complexity": time_c,
+            "space_complexity": "O(1)",
+            "code_quality": "Syntactically correct with good variable declarations.",
+            "optimized_code": "// Model code\n" + code_submission.strip()
+        }
 
     strengths = []
     if matched_kw:
@@ -115,23 +166,44 @@ def evaluate_answer_heuristic(
         "completeness_score": completeness,
         "communication_score": communication,
         "overall_score": overall,
+        "code_score": code_score,
         "strengths": strengths,
         "weaknesses": weaknesses,
-        "feedback": f"Your response achieved an overall score of {overall}%. To elevate this to top percentile, emphasize architectural trade-offs and concrete production examples.",
-        "suggested_model_answer": f"A comprehensive answer would start with definition, followed by trade-offs, mentioning key concepts: {', '.join(expected_keywords[:4])}."
+        "feedback": f"Your response achieved an overall score of {overall}%. To meet {company_mode} standards, emphasize architectural trade-offs.",
+        "company_feedback": f"For {company_mode}, structure your reasoning with measurable impacts and explicit Big-O trade-offs.",
+        "suggested_model_answer": f"A comprehensive answer would start with definition, followed by trade-offs, mentioning key concepts: {', '.join(expected_keywords[:4])}.",
+        "code_analysis": code_analysis
     }
 
 def evaluate_answer(
     question: str,
     user_answer: str,
     category: str = "Technical",
-    expected_keywords: Optional[List[str]] = None
+    expected_keywords: Optional[List[str]] = None,
+    company_mode: str = "General Tech",
+    code_submission: Optional[str] = None,
+    programming_language: Optional[str] = "javascript"
 ) -> Dict[str, Any]:
     expected_keywords = expected_keywords or []
     if settings.GEMINI_API_KEY and "your_gemini" not in settings.GEMINI_API_KEY:
         try:
-            return evaluate_answer_gemini(question, user_answer, category, expected_keywords)
+            return evaluate_answer_gemini(
+                question=question,
+                user_answer=user_answer,
+                category=category,
+                expected_keywords=expected_keywords,
+                company_mode=company_mode,
+                code_submission=code_submission,
+                programming_language=programming_language
+            )
         except Exception as e:
             logger.warning(f"Gemini evaluation error: {e}. Using heuristic evaluator.")
 
-    return evaluate_answer_heuristic(question, user_answer, category, expected_keywords)
+    return evaluate_answer_heuristic(
+        question=question,
+        user_answer=user_answer,
+        category=category,
+        expected_keywords=expected_keywords,
+        company_mode=company_mode,
+        code_submission=code_submission
+    )

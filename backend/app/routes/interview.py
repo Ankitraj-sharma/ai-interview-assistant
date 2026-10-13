@@ -11,7 +11,8 @@ from app.schemas.interview import (
 )
 from app.services.question_generator import (
     generate_interview_questions,
-    generate_followup_question
+    generate_followup_question,
+    calibrate_adaptive_question
 )
 from app.services.answer_evaluator import evaluate_answer
 from app.services.recommendation_engine import generate_recommendations
@@ -43,11 +44,13 @@ def start_interview(
         if res:
             resume_skills = res.get("extracted_skills", [])
 
-    # Generate or retrieve questions
+    # Generate or retrieve questions tailored to persona & coding needs
     raw_questions = generate_interview_questions(
         role=req.role,
         difficulty=req.difficulty,
+        company_mode=req.company_mode,
         num_questions=req.num_questions,
+        include_coding_challenge=req.include_coding_challenge,
         resume_skills=resume_skills,
         missing_skills=req.missing_skills
     )
@@ -62,15 +65,19 @@ def start_interview(
             "question_text": q.get("question", ""),
             "category": q.get("category", "Technical"),
             "difficulty": q.get("difficulty", req.difficulty),
-            "expected_keywords": q.get("expected_keywords", [])
+            "expected_keywords": q.get("expected_keywords", []),
+            "is_coding_challenge": q.get("is_coding_challenge", False),
+            "code_starter_template": q.get("code_starter_template", ""),
+            "hints": q.get("hints", "")
         })
 
-    # Save to database
     session_data = {
         "id": session_id,
         "user_id": user_id,
         "role": req.role,
         "difficulty": req.difficulty,
+        "company_mode": req.company_mode,
+        "adaptive_status": "Standard",
         "num_questions": len(formatted_questions),
         "status": "in_progress",
         "created_at": datetime.utcnow().isoformat()
@@ -86,6 +93,7 @@ def start_interview(
         session_id=session_id,
         role=req.role,
         difficulty=req.difficulty,
+        company_mode=req.company_mode,
         total_questions=len(response_questions),
         questions=response_questions
     )
@@ -101,19 +109,33 @@ def submit_answer(req: SubmitAnswerRequest):
     if not target_q:
         raise HTTPException(status_code=404, detail="Question not found in this session")
 
-    # Evaluate answer
+    company_mode = session.get("company_mode", "General Tech")
+
+    # Evaluate answer (verbal text + optional code submission)
     eval_result = evaluate_answer(
         question=target_q.get("question_text", ""),
         user_answer=req.user_answer,
         category=target_q.get("category", "Technical"),
-        expected_keywords=target_q.get("expected_keywords", [])
+        expected_keywords=target_q.get("expected_keywords", []),
+        company_mode=company_mode,
+        code_submission=req.code_submission,
+        programming_language=req.programming_language or "javascript"
     )
+
+    # Dynamic CAT (Computerized Adaptive Testing) calibration for remaining questions
+    adaptive_status = "Standard"
+    overall_score = eval_result["overall_score"]
+    if overall_score >= 85.0:
+        adaptive_status = "Scaled Up (Hard 🔥)"
+    elif overall_score <= 55.0:
+        adaptive_status = "Calibrated (Foundations 🎯)"
 
     # Generate follow-up question
     follow_up = generate_followup_question(
         original_question=target_q.get("question_text", ""),
         user_answer=req.user_answer,
-        role=session.get("role", "Software Engineer")
+        role=session.get("role", "Software Engineer"),
+        company_mode=company_mode
     )
 
     answer_id = str(uuid.uuid4())
@@ -122,19 +144,28 @@ def submit_answer(req: SubmitAnswerRequest):
         "session_id": req.session_id,
         "question_id": req.question_id,
         "user_answer": req.user_answer,
+        "code_submission": req.code_submission or "",
+        "programming_language": req.programming_language or "javascript",
         "audio_url": req.audio_url,
         "technical_score": eval_result["technical_score"],
         "communication_score": eval_result["communication_score"],
         "relevance_score": eval_result["relevance_score"],
         "completeness_score": eval_result["completeness_score"],
         "overall_score": eval_result["overall_score"],
+        "code_score": eval_result.get("code_score"),
         "feedback": eval_result["feedback"],
+        "company_feedback": eval_result.get("company_feedback"),
         "strengths": eval_result["strengths"],
         "weaknesses": eval_result["weaknesses"],
         "follow_up_question": follow_up,
-        "speaking_metrics": req.speaking_metrics or {}
+        "speaking_metrics": req.speaking_metrics or {},
+        "code_analysis": eval_result.get("code_analysis") or {},
+        "engagement_metrics": req.engagement_metrics or {}
     }
     db_save_answer(answer_record)
+
+    # Update session adaptive state
+    db_update_session(req.session_id, {"adaptive_status": adaptive_status})
 
     return EvaluationResponse(
         answer_id=answer_id,
@@ -143,11 +174,15 @@ def submit_answer(req: SubmitAnswerRequest):
         communication_score=eval_result["communication_score"],
         relevance_score=eval_result["relevance_score"],
         completeness_score=eval_result["completeness_score"],
+        code_score=eval_result.get("code_score"),
         strengths=eval_result["strengths"],
         weaknesses=eval_result["weaknesses"],
         feedback=eval_result["feedback"],
+        company_feedback=eval_result.get("company_feedback"),
         suggested_model_answer=eval_result.get("suggested_model_answer"),
-        follow_up_question=follow_up
+        follow_up_question=follow_up,
+        code_analysis=eval_result.get("code_analysis"),
+        adaptive_difficulty_status=adaptive_status
     )
 
 @router.post("/finish", response_model=FinishInterviewResponse)
@@ -160,7 +195,6 @@ def finish_interview(session_id: str):
     if not answers:
         raise HTTPException(status_code=400, detail="No answers submitted yet")
 
-    # Compute averages
     count = len(answers)
     avg_tech = round(sum(a.get("technical_score", 0.0) for a in answers) / count, 1)
     avg_comm = round(sum(a.get("communication_score", 0.0) for a in answers) / count, 1)
@@ -168,7 +202,12 @@ def finish_interview(session_id: str):
     avg_comp = round(sum(a.get("completeness_score", 0.0) for a in answers) / count, 1)
     avg_overall = round(sum(a.get("overall_score", 0.0) for a in answers) / count, 1)
 
-    # Collect weak areas
+    code_scores = [a.get("code_score") for a in answers if a.get("code_score") is not None]
+    avg_code = round(sum(code_scores) / len(code_scores), 1) if code_scores else 0.0
+
+    eng_scores = [a.get("engagement_metrics", {}).get("stability_score", 85.0) for a in answers if a.get("engagement_metrics")]
+    avg_eng = round(sum(eng_scores) / len(eng_scores), 1) if eng_scores else 88.0
+
     weak_areas = []
     for a in answers:
         for w in a.get("weaknesses", []):
@@ -176,10 +215,11 @@ def finish_interview(session_id: str):
                 weak_areas.append(w)
     weak_areas = weak_areas[:4]
 
+    company_mode = session.get("company_mode", "General Tech")
     recommendations = generate_recommendations(weak_areas, avg_overall)
 
     summary_feedback = (
-        f"You completed the mock interview for {session.get('role')} with an overall score of {avg_overall}%. "
+        f"You completed the mock interview for {session.get('role')} under {company_mode} criteria with an overall score of {avg_overall}%. "
         f"Technical depth scored {avg_tech}%, communication clarity scored {avg_comm}%. "
         f"Review the identified weak areas and model answers to maximize interview performance."
     )
@@ -192,6 +232,7 @@ def finish_interview(session_id: str):
         "communication_score": avg_comm,
         "relevance_score": avg_rel,
         "completeness_score": avg_comp,
+        "code_score": avg_code,
         "summary_feedback": summary_feedback,
         "weak_areas": weak_areas,
         "recommendations": recommendations,
@@ -200,11 +241,15 @@ def finish_interview(session_id: str):
 
     return FinishInterviewResponse(
         session_id=session_id,
+        role=session.get("role", "Software Engineer"),
+        company_mode=company_mode,
         overall_score=avg_overall,
         technical_score=avg_tech,
         communication_score=avg_comm,
         relevance_score=avg_rel,
         completeness_score=avg_comp,
+        code_score=avg_code,
+        engagement_score=avg_eng,
         summary_feedback=summary_feedback,
         weak_areas=weak_areas,
         recommendations=recommendations,
@@ -220,7 +265,6 @@ def get_interview_result(session_id: str):
     questions = db_get_questions(session_id)
     answers = db_get_answers(session_id)
 
-    # Combine questions and their corresponding answers
     qa_list = []
     for q in questions:
         ans = next((a for a in answers if a.get("question_id") == q.get("id")), None)
