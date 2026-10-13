@@ -63,3 +63,26 @@ def analyze_speech_metrics(transcript: str, duration_seconds: float = 30.0) -> D
         "speaking_speed": pace,
         "clarity_score": max(40.0, round(clarity, 1))
     }
+
+def transcribe_audio_gemini(audio_bytes: bytes, mime_type: str = "audio/webm") -> str:
+    """Uses Gemini to transcribe audio bytes to text with high accuracy."""
+    from app.config import settings
+    if not settings.GEMINI_API_KEY or "your_gemini" in settings.GEMINI_API_KEY:
+        return ""
+    try:
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                "Listen to this audio response and transcribe the candidate's speech accurately into clean English text. Return only the transcription text, nothing else."
+            ]
+        )
+        return response.text.strip() if response and response.text else ""
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Audio transcription error with Gemini: {e}")
+        return ""
+

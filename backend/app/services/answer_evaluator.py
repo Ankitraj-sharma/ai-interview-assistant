@@ -160,6 +160,53 @@ def evaluate_answer_heuristic(
     if word_count < 30:
         weaknesses.append("Response is overly brief. Elaborate on edge cases, implementation details, and trade-offs.")
 
+    # Comprehensive Domain-Specific Model Answers for Heuristic Engine
+    q_lower = question.lower()
+    if "client-side rendering" in q_lower or "csr" in q_lower or "ssr" in q_lower:
+        model_ans = (
+            "Ideal Solution: Server-Side Rendering (SSR, e.g. Next.js) renders complete HTML on the server for each request, "
+            "providing instantaneous First Contentful Paint (FCP) and optimal SEO discoverability, making it essential for public-facing "
+            "portals and e-commerce. Conversely, Client-Side Rendering (CSR, e.g. standard React SPA) downloads a minimal HTML shell and "
+            "executes JavaScript client-side, offering silky-smooth page transitions and offline caching for authenticated SaaS dashboards. "
+            "SSR introduces server CPU compute overhead and hydration latency, whereas CSR suffers from slower initial load times on low-bandwidth networks."
+        )
+    elif "jwt" in q_lower or "token" in q_lower or "csrf" in q_lower or "xss" in q_lower:
+        model_ans = (
+            "Ideal Solution: A secure authentication pipeline stores JWT tokens inside HttpOnly, Secure, SameSite=Lax/Strict cookies "
+            "rather than browser localStorage, completely preventing XSS-based token theft. CSRF vulnerabilities are mitigated via SameSite cookies "
+            "combined with anti-CSRF challenge headers. Access tokens should remain short-lived (5-15 mins) with refresh token rotation and server-side "
+            "revocation blacklists (e.g. in Redis) to invalidate compromised sessions immediately."
+        )
+    elif "spike" in q_lower or "latency" in q_lower or "4 seconds" in q_lower or "diagnostic" in q_lower:
+        model_ans = (
+            "Ideal Solution: Systematic 4-step remediation: 1) Telemetry & Isolation: Inspect APM traces (Datadog/New Relic) to identify whether "
+            "the latency is database I/O, downstream microservices, or garbage collection stalls. 2) Database Diagnosis: Check active locks, connection pool "
+            "exhaustion, and run EXPLAIN ANALYZE on slow queries to add missing B-Tree indexes. 3) Caching & Load Shedding: Deploy Redis caching for frequent "
+            "read queries, enable read replicas, and activate circuit breakers. 4) Scaling: Scale horizontal stateless pods and verify memory thresholds."
+        )
+    elif "two sum" in q_lower or "target" in q_lower or "array" in q_lower or "complexity" in q_lower:
+        model_ans = (
+            "Ideal Solution: The optimal algorithm achieves O(N) Time and O(N) Space Complexity using a Hash Map (Hash Table):\n"
+            "function twoSum(nums, target) {\n"
+            "  const seen = new Map();\n"
+            "  for (let i = 0; i < nums.length; i++) {\n"
+            "    const complement = target - nums[i];\n"
+            "    if (seen.has(complement)) {\n"
+            "      return [seen.get(complement), i];\n"
+            "    }\n"
+            "    seen.set(nums[i], i);\n"
+            "  }\n"
+            "  return [];\n"
+            "}\n"
+            "This performs a single linear pass instead of a nested O(N^2) brute-force scan."
+        )
+    else:
+        model_ans = (
+            f"Ideal Solution: A top-tier interview answer begins with clear technical definitions, follows with system architecture, "
+            f"and explicitly incorporates essential industry concepts: {', '.join(expected_keywords[:5])}. "
+            f"It then highlights production trade-offs, high-concurrency failure modes, and automated error recovery."
+        )
+
     return {
         "technical_score": technical,
         "relevance_score": relevance,
@@ -171,7 +218,7 @@ def evaluate_answer_heuristic(
         "weaknesses": weaknesses,
         "feedback": f"Your response achieved an overall score of {overall}%. To meet {company_mode} standards, emphasize architectural trade-offs.",
         "company_feedback": f"For {company_mode}, structure your reasoning with measurable impacts and explicit Big-O trade-offs.",
-        "suggested_model_answer": f"A comprehensive answer would start with definition, followed by trade-offs, mentioning key concepts: {', '.join(expected_keywords[:4])}.",
+        "suggested_model_answer": model_ans,
         "code_analysis": code_analysis
     }
 

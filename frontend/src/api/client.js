@@ -54,6 +54,9 @@ export const interviewAPI = {
 
 export const voiceAPI = {
   analyzeMetrics: (data) => apiClient.post('/voice/analyze-metrics', data),
+  transcribeAudio: (formData) => apiClient.post('/voice/transcribe', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
 };
 
 export const dashboardAPI = {
