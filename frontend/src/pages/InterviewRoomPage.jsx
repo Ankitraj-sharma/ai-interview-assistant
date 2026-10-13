@@ -279,7 +279,7 @@ export default function InterviewRoomPage() {
             </h2>
 
             {/* AI Voice Speaker */}
-            <InterviewerSpeaker textToSpeak={currentQ.question_text} autoPlay={true} />
+            <InterviewerSpeaker textToSpeak={currentQ.question_text} autoPlay={false} />
           </div>
 
           {/* Answer Workspace (Verbal or Code Sandbox) */}
